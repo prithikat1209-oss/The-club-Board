@@ -188,6 +188,7 @@
     </div>
     <div class="auth-title">The Club Board</div>
     <div class="auth-sub">Sign in with your PSG iTech college email</div>
+    <div class="auth-sub" style="margin-top:-8px; margin-bottom:18px; font-size:11px; opacity:0.75;">📌 Bookmark this: tinyurl.com/psg-club-board</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</button>
@@ -319,14 +320,22 @@ function renderMessageText(text){
   return escapeHtml(text).replace(/@([A-Za-z0-9_]+)/g, '<span class="mention">@$1</span>');
 }
 
-async function loadEvents(){
-  try{
-    const res = await window.storage.get(KEY, true);
-    if(res && res.value) return JSON.parse(res.value);
-    return [];
-  }catch(e){ return []; }
+let eventsCache = [];
+let firestoreUnsub = null;
+
+function startEventsListener(){
+  if(firestoreUnsub) return; // already listening
+  firestoreUnsub = db.collection('events').onSnapshot(
+    (snapshot) => {
+      eventsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      render();
+    },
+    (err) => {
+      console.error('Firestore listen error:', err);
+      document.getElementById('status').innerText = 'Could not load the board — check your connection.';
+    }
+  );
 }
-async function saveEvents(events){ await window.storage.set(KEY, JSON.stringify(events), true); }
 
 function fmtDateParts(dateStr){
   const [y,m,d] = dateStr.split('-').map(Number);
@@ -423,8 +432,8 @@ function buildTicketHtml(e, today, tomorrow, isPast){
   `;
 }
 
-async function render(){
-  const events = await loadEvents();
+function render(){
+  const events = [...eventsCache];
   events.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
 
   const today = new Date(); today.setHours(0,0,0,0);
@@ -482,25 +491,29 @@ async function addEvent(){
   const by = document.getElementById('f-name').value.trim();
   if(!title || !date){ alert('Please add at least a title and a date.'); return; }
 
-  const events = await loadEvents();
-  events.push({
-    id: 'ev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    title, category, date, time, desc, by, rsvps: {}, messages: []
-  });
-  await saveEvents(events);
-
-  document.getElementById('f-title').value='';
-  document.getElementById('f-date').value='';
-  document.getElementById('f-time').value='';
-  document.getElementById('f-desc').value='';
-  render();
+  const btn = document.querySelector('.post-btn');
+  if(btn){ btn.disabled = true; btn.innerText = 'Posting...'; }
+  try{
+    await db.collection('events').add({
+      title, category, date, time, desc, by, rsvps: {}, messages: [],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('f-title').value='';
+    document.getElementById('f-date').value='';
+    document.getElementById('f-time').value='';
+    document.getElementById('f-desc').value='';
+  }catch(err){
+    alert('Could not post this activity: ' + err.message);
+  }
+  if(btn){ btn.disabled = false; btn.innerText = 'Post to the board'; }
 }
 
 async function removeEvent(id){
-  const events = await loadEvents();
-  const filtered = events.filter(e => e.id !== id);
-  await saveEvents(filtered);
-  render();
+  try{
+    await db.collection('events').doc(id).delete();
+  }catch(err){
+    alert('Could not remove this activity: ' + err.message);
+  }
 }
 
 async function rsvp(id, status){
@@ -510,14 +523,19 @@ async function rsvp(id, status){
     if(!name) return;
     document.getElementById('f-name').value = name;
   }
-  const events = await loadEvents();
-  const ev = events.find(e => e.id === id);
+  const ev = eventsCache.find(e => e.id === id);
   if(!ev) return;
-  if(!ev.rsvps) ev.rsvps = {};
-  if(ev.rsvps[name] === status) delete ev.rsvps[name];
-  else ev.rsvps[name] = status;
-  await saveEvents(events);
-  render();
+  const rsvps = ev.rsvps || {};
+  const fieldKey = `rsvps.${name}`;
+  try{
+    if(rsvps[name] === status){
+      await db.collection('events').doc(id).update({ [fieldKey]: firebase.firestore.FieldValue.delete() });
+    } else {
+      await db.collection('events').doc(id).update({ [fieldKey]: status });
+    }
+  }catch(err){
+    alert('Could not save your RSVP: ' + err.message);
+  }
 }
 
 async function sendMessage(id){
@@ -530,18 +548,19 @@ async function sendMessage(id){
     if(!name) return;
     document.getElementById('f-name').value = name;
   }
-  const events = await loadEvents();
-  const ev = events.find(e => e.id === id);
-  if(!ev) return;
-  if(!ev.messages) ev.messages = [];
-  ev.messages.push({
-    id: 'm_' + Date.now(),
-    name, text,
-    time: fmtTime(new Date().toTimeString().slice(0,5))
-  });
-  await saveEvents(events);
-  openChats.add(id);
-  render();
+  try{
+    await db.collection('events').doc(id).update({
+      messages: firebase.firestore.FieldValue.arrayUnion({
+        id: 'm_' + Date.now(),
+        name, text,
+        time: fmtTime(new Date().toTimeString().slice(0,5))
+      })
+    });
+    input.value = '';
+    openChats.add(id);
+  }catch(err){
+    alert('Could not send this message: ' + err.message);
+  }
 }
 
 function enableNotifications(){
@@ -549,7 +568,7 @@ function enableNotifications(){
   Notification.requestPermission().then(perm => {
     if(perm === 'granted'){
       document.getElementById('notifBar').innerHTML = '<span>🔔 Reminders on — keep this tab open to get notified</span>';
-      setInterval(async () => { const events = await loadEvents(); checkReminders(events); }, 60000);
+      setInterval(() => { checkReminders(eventsCache); }, 60000);
     }
   });
 }
@@ -588,6 +607,7 @@ function checkReminders(events){
 <!-- Firebase Authentication -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
   // ===== PASTE YOUR FIREBASE CONFIG HERE =====
   // Get this from Firebase Console → Project Settings → General → Your apps → SDK setup and configuration
@@ -605,6 +625,7 @@ function checkReminders(events){
 
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+  const db = firebase.firestore();
 
   let authMode = 'signin';
 
@@ -695,6 +716,7 @@ function checkReminders(events){
         <div><div class="who">👋 ${name}</div><div class="email">${user.email}</div></div>
         <button onclick="signOutUser()">Sign out</button>
       `;
+      startEventsListener();
       render();
     } else {
       gate.classList.remove('hidden');
