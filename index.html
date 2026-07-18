@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Club Board</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Club Board">
 <style>
   :root{
     --bg:#F6ECE3;
@@ -117,10 +123,100 @@
 
   .empty{ text-align:center; padding: 30px 16px; color: var(--navy-soft); font-size: 13.5px; border: 1px dashed var(--line); border-radius: 12px; background: var(--panel); }
   .status{ text-align:center; font-size: 12px; color: rgba(0,0,0,0.4); margin-top: 30px; }
+
+  .past-toggle{
+    width:100%; text-align:center; background: none; border: 1px dashed var(--line);
+    border-radius: 12px; padding: 12px; margin: 28px 0 6px; color: var(--navy-soft);
+    font-size: 13px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .past-toggle:hover{ border-color: var(--gold); color: var(--gold); }
+  .past-list{ display:none; margin-top: 14px; }
+  .past-list.open{ display:block; }
+  .ticket.past{ opacity: 0.6; border-left-color: var(--navy-soft); }
+  .ticket.past .date-block .dow{ color: var(--navy-soft); }
+  .ticket.past:hover{ opacity: 0.9; }
+  .past-label{ display:inline-block; font-size: 10.5px; font-weight:700; padding: 2px 7px; border-radius: 5px; margin-left: 6px; vertical-align: middle; background: var(--navy-faint); color: var(--navy-soft); }
+
+  /* ---- Auth gate ---- */
+  #authGate{
+    position: fixed; inset: 0; background: var(--bg); z-index: 100;
+    display:flex; align-items:center; justify-content:center; padding: 20px;
+  }
+  #authGate.hidden{ display:none; }
+  .auth-card{
+    width:100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px; padding: 28px 24px; box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  }
+  .auth-logo{ text-align:center; margin-bottom: 18px; }
+  .auth-logo .badge{
+    width:56px; height:56px; border-radius:16px; background: var(--navy); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:24px; margin: 0 auto 10px;
+  }
+  .auth-title{ font-family: Georgia, serif; font-size: 22px; font-weight:700; text-align:center; margin-bottom: 4px; }
+  .auth-sub{ font-size: 12.5px; color: var(--navy-soft); text-align:center; margin-bottom: 20px; }
+  .auth-tabs{ display:flex; gap:6px; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 18px; }
+  .auth-tab{ flex:1; text-align:center; padding: 8px; border-radius: 8px; font-size: 12.5px; font-weight:700; cursor:pointer; color: var(--navy-soft); background:none; border:none; font-family:inherit; }
+  .auth-tab.active{ background: var(--navy); color:#fff; }
+  .auth-field{ margin-bottom: 12px; }
+  .auth-field label{ display:block; font-size: 11px; text-transform:uppercase; letter-spacing:0.07em; color: var(--navy-soft); margin-bottom: 4px; font-weight:700; }
+  .auth-field input{ width:100%; padding: 11px 12px; border-radius: 8px; border: 1px solid var(--line); background:#FAFAFA; font-size: 14.5px; font-family:inherit; color: var(--navy); }
+  .auth-field input:focus{ outline:none; border-color: var(--gold); }
+  .auth-hint{ font-size: 10.5px; color: var(--navy-soft); margin-top: 3px; }
+  .auth-error{ font-size: 12px; color: var(--danger); background: rgba(185,28,28,0.08); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; display:none; }
+  .auth-error.show{ display:block; }
+  .auth-submit{ width:100%; background: var(--navy); color:#fff; border:none; border-radius: 9px; padding: 12px; font-weight:700; font-size: 14.5px; cursor:pointer; font-family:inherit; }
+  .auth-submit:hover{ background:#1a1a1a; }
+  .auth-submit:disabled{ opacity:0.6; cursor:default; }
+  .auth-forgot{ text-align:center; margin-top: 14px; font-size: 12px; }
+  .auth-forgot a{ color: var(--gold); cursor:pointer; text-decoration: underline; }
+
+  .user-bar{
+    display:flex; align-items:center; justify-content:space-between; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 20px; font-size: 12.5px;
+  }
+  .user-bar .who{ font-weight:700; }
+  .user-bar .email{ color: var(--navy-soft); font-size: 11px; }
+  .user-bar button{ background: none; border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; font-size: 11.5px; font-weight:700; cursor:pointer; font-family:inherit; color: var(--navy-soft); }
+  .user-bar button:hover{ border-color: var(--danger); color: var(--danger); }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="badge">🎓</div>
+    </div>
+    <div class="auth-title">The Club Board</div>
+    <div class="auth-sub">Sign in with your PSG iTech college email</div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabSignIn" onclick="switchAuthTab('signin')">Sign In</button>
+      <button class="auth-tab" id="tabSignUp" onclick="switchAuthTab('signup')">Create Account</button>
+    </div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <div id="signupNameField" class="auth-field" style="display:none;">
+      <label>Full name</label>
+      <input id="auth-name" placeholder="e.g. Prithika T" />
+    </div>
+    <div class="auth-field">
+      <label>College email</label>
+      <input id="auth-email" placeholder="yourname@psgitech.ac.in" type="email" />
+      <div class="auth-hint">Must end in @psgitech.ac.in</div>
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input id="auth-password" placeholder="At least 6 characters" type="password" />
+    </div>
+
+    <button class="auth-submit" id="authSubmitBtn" onclick="handleAuthSubmit()">Sign In</button>
+    <div class="auth-forgot"><a onclick="handleForgotPassword()">Forgot password?</a></div>
+  </div>
+</div>
+
+<div class="wrap" id="boardWrap" style="display:none;">
+  <div class="user-bar" id="userBar"></div>
   <header>
     <div class="eyebrow">Weekly Noticeboard</div>
     <h1>The Club Board</h1>
@@ -172,7 +268,7 @@
       <div><label>Details (optional)</label><textarea id="f-desc" placeholder="Where to meet, what to bring..."></textarea></div>
     </div>
     <div class="row">
-      <div><label>Your name</label><input id="f-name" placeholder="Who's posting this?" /></div>
+      <div><label>Your name</label><input id="f-name" placeholder="Who's posting this?" style="display:none;" /></div>
     </div>
     <button class="post-btn" onclick="addEvent()">Post to the board</button>
   </div>
@@ -180,6 +276,9 @@
   <div class="section-label">Upcoming</div>
   <div class="filters" id="filters"></div>
   <div id="list" style="margin-top:14px;"></div>
+
+  <button class="past-toggle" id="pastToggle" onclick="togglePast()">🕘 Show past activities</button>
+  <div class="past-list" id="pastList"></div>
 
   <div class="status" id="status">Loading board…</div>
 </div>
@@ -204,6 +303,12 @@ const CATS = {
 let activeFilter = 'all';
 let openChats = new Set();
 let notifiedIds = new Set();
+let showPast = false;
+
+function togglePast(){
+  showPast = !showPast;
+  render();
+}
 
 function escapeHtml(s){
   const d = document.createElement('div');
@@ -262,6 +367,62 @@ function toggleChat(id){
   render();
 }
 
+function buildTicketHtml(e, today, tomorrow, isPast){
+  const parts = fmtDateParts(e.date);
+  const cat = CATS[e.category] || CATS.other;
+  let whenBadge = '';
+  if(isPast){
+    whenBadge = '<span class="past-label">Past</span>';
+  } else if(isSameDay(parts.dateObj, today)) whenBadge = '<span class="when-badge when-today">Today</span>';
+  else if(isSameDay(parts.dateObj, tomorrow)) whenBadge = '<span class="when-badge when-tomorrow">Tomorrow</span>';
+
+  const rsvps = e.rsvps || {};
+  const goingCount = Object.values(rsvps).filter(v => v==='going').length;
+  const maybeCount = Object.values(rsvps).filter(v => v==='maybe').length;
+
+  const msgs = e.messages || [];
+  const isOpen = openChats.has(e.id);
+  const msgsHtml = msgs.length
+    ? msgs.map(m => `<div class="msg"><span class="who">${escapeHtml(m.name)}</span><span class="time">${m.time}</span><br>${renderMessageText(m.text)}</div>`).join('')
+    : `<div class="hint">No messages yet. Use @name to notify a specific member.</div>`;
+
+  return `
+    <div class="ticket ${isPast ? 'past' : ''}">
+      <button class="del" onclick="removeEvent('${e.id}')" title="Remove">✕</button>
+      <div class="date-block">
+        <div class="dow">${parts.dow}</div>
+        <div class="day">${parts.day}</div>
+        <div class="mon">${parts.mon}</div>
+      </div>
+      <div class="body">
+        <div class="top-row">
+          <div class="title">${escapeHtml(e.title)}${whenBadge}</div>
+          <span class="cat-badge" style="background:${cat.color}18; color:${cat.color};">${cat.label}</span>
+        </div>
+        <div class="meta">${e.time ? fmtTime(e.time) : 'Time TBD'} · ${e.date}</div>
+        ${e.desc ? `<div class="desc">${escapeHtml(e.desc)}</div>` : ''}
+        <div class="by">Posted by ${escapeHtml(e.by || 'someone')}</div>
+        <div class="rsvp-row">
+          <div class="rsvp-btns">
+            <button class="rsvp-btn going" onclick="rsvp('${e.id}','going')">Going</button>
+            <button class="rsvp-btn maybe" onclick="rsvp('${e.id}','maybe')">Maybe</button>
+            <button class="rsvp-btn no" onclick="rsvp('${e.id}','no')">Can't go</button>
+          </div>
+          <div class="rsvp-count">${goingCount} went${maybeCount ? ', '+maybeCount+' maybe' : ''}</div>
+        </div>
+        <button class="chat-toggle" onclick="toggleChat('${e.id}')">💬 ${msgs.length ? msgs.length+' message'+(msgs.length>1?'s':'') : 'Message about this'}</button>
+        <div class="chat-box ${isOpen?'open':''}">
+          ${msgsHtml}
+          <div class="chat-input-row">
+            <input id="chat-in-${e.id}" placeholder="Write a message, use @name to tag someone" />
+            <button class="chat-send" onclick="sendMessage('${e.id}')">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 async function render(){
   const events = await loadEvents();
   events.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
@@ -273,9 +434,16 @@ async function render(){
     const [y,m,d] = e.date.split('-').map(Number);
     return new Date(y,m-1,d) >= today;
   });
+  let past = events.filter(e => {
+    const [y,m,d] = e.date.split('-').map(Number);
+    return new Date(y,m-1,d) < today;
+  }).reverse();
 
   renderFilters(upcoming);
-  if(activeFilter !== 'all') upcoming = upcoming.filter(e => (e.category||'other') === activeFilter);
+  if(activeFilter !== 'all'){
+    upcoming = upcoming.filter(e => (e.category||'other') === activeFilter);
+    past = past.filter(e => (e.category||'other') === activeFilter);
+  }
 
   const sat = nextSaturday();
   const satEvents = events.filter(e => {
@@ -288,60 +456,19 @@ async function render(){
   if(upcoming.length === 0){
     list.innerHTML = `<div class="empty">Nothing here yet. Be the first to add something for the club.</div>`;
   } else {
-    list.innerHTML = upcoming.map(e => {
-      const parts = fmtDateParts(e.date);
-      const cat = CATS[e.category] || CATS.other;
-      let whenBadge = '';
-      if(isSameDay(parts.dateObj, today)) whenBadge = '<span class="when-badge when-today">Today</span>';
-      else if(isSameDay(parts.dateObj, tomorrow)) whenBadge = '<span class="when-badge when-tomorrow">Tomorrow</span>';
-
-      const rsvps = e.rsvps || {};
-      const goingCount = Object.values(rsvps).filter(v => v==='going').length;
-      const maybeCount = Object.values(rsvps).filter(v => v==='maybe').length;
-
-      const msgs = e.messages || [];
-      const isOpen = openChats.has(e.id);
-      const msgsHtml = msgs.length
-        ? msgs.map(m => `<div class="msg"><span class="who">${escapeHtml(m.name)}</span><span class="time">${m.time}</span><br>${renderMessageText(m.text)}</div>`).join('')
-        : `<div class="hint">No messages yet. Use @name to notify a specific member.</div>`;
-
-      return `
-        <div class="ticket">
-          <button class="del" onclick="removeEvent('${e.id}')" title="Remove">✕</button>
-          <div class="date-block">
-            <div class="dow">${parts.dow}</div>
-            <div class="day">${parts.day}</div>
-            <div class="mon">${parts.mon}</div>
-          </div>
-          <div class="body">
-            <div class="top-row">
-              <div class="title">${escapeHtml(e.title)}${whenBadge}</div>
-              <span class="cat-badge" style="background:${cat.color}18; color:${cat.color};">${cat.label}</span>
-            </div>
-            <div class="meta">${e.time ? fmtTime(e.time) : 'Time TBD'}</div>
-            ${e.desc ? `<div class="desc">${escapeHtml(e.desc)}</div>` : ''}
-            <div class="by">Posted by ${escapeHtml(e.by || 'someone')}</div>
-            <div class="rsvp-row">
-              <div class="rsvp-btns">
-                <button class="rsvp-btn going" onclick="rsvp('${e.id}','going')">Going</button>
-                <button class="rsvp-btn maybe" onclick="rsvp('${e.id}','maybe')">Maybe</button>
-                <button class="rsvp-btn no" onclick="rsvp('${e.id}','no')">Can't go</button>
-              </div>
-              <div class="rsvp-count">${goingCount} going${maybeCount ? ', '+maybeCount+' maybe' : ''}</div>
-            </div>
-            <button class="chat-toggle" onclick="toggleChat('${e.id}')">💬 ${msgs.length ? msgs.length+' message'+(msgs.length>1?'s':'') : 'Message about this'}</button>
-            <div class="chat-box ${isOpen?'open':''}">
-              ${msgsHtml}
-              <div class="chat-input-row">
-                <input id="chat-in-${e.id}" placeholder="Write a message, use @name to tag someone" />
-                <button class="chat-send" onclick="sendMessage('${e.id}')">Send</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    list.innerHTML = upcoming.map(e => buildTicketHtml(e, today, tomorrow, false)).join('');
   }
+
+  const pastToggle = document.getElementById('pastToggle');
+  const pastList = document.getElementById('pastList');
+  pastToggle.innerText = (showPast ? '🕘 Hide past activities' : '🕘 Show past activities') + ` (${past.length})`;
+  pastList.className = 'past-list' + (showPast ? ' open' : '');
+  if(showPast){
+    pastList.innerHTML = past.length
+      ? past.map(e => buildTicketHtml(e, today, tomorrow, true)).join('')
+      : `<div class="empty">No past activities yet.</div>`;
+  }
+
   document.getElementById('status').innerText = 'Shared board · updates for everyone with this link';
   checkReminders(upcoming);
 }
@@ -455,7 +582,125 @@ function checkReminders(events){
   });
 }
 
-render();
+// render() is now called after successful sign-in, from the auth logic below.
+</script>
+
+<!-- Firebase Authentication -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+  // ===== PASTE YOUR FIREBASE CONFIG HERE =====
+  // Get this from Firebase Console → Project Settings → General → Your apps → SDK setup and configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyCXKuVaZDlYr4vje6vkqplWIEm7d_jGorY",
+    authDomain: "club-board-4ed86.firebaseapp.com",
+    projectId: "club-board-4ed86",
+    storageBucket: "club-board-4ed86.firebasestorage.app",
+    messagingSenderId: "839053596234",
+    appId: "1:839053596234:web:0a0c6b41975a85864b38b3"
+  };
+  // =============================================
+
+  const ALLOWED_DOMAIN = "@psgitech.ac.in";
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  let authMode = 'signin';
+
+  function switchAuthTab(mode){
+    authMode = mode;
+    document.getElementById('tabSignIn').classList.toggle('active', mode==='signin');
+    document.getElementById('tabSignUp').classList.toggle('active', mode==='signup');
+    document.getElementById('signupNameField').style.display = mode==='signup' ? 'block' : 'none';
+    document.getElementById('authSubmitBtn').innerText = mode==='signin' ? 'Sign In' : 'Create Account';
+    showAuthError('');
+  }
+
+  function showAuthError(msg){
+    const el = document.getElementById('authError');
+    if(!msg){ el.classList.remove('show'); el.innerText=''; return; }
+    el.innerText = msg;
+    el.classList.add('show');
+  }
+
+  function validCollegeEmail(email){
+    return email.toLowerCase().trim().endsWith(ALLOWED_DOMAIN);
+  }
+
+  async function handleAuthSubmit(){
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const btn = document.getElementById('authSubmitBtn');
+
+    showAuthError('');
+
+    if(!email || !password){ showAuthError('Please fill in email and password.'); return; }
+    if(!validCollegeEmail(email)){ showAuthError(`Please use your college email ending in ${ALLOWED_DOMAIN}`); return; }
+    if(password.length < 6){ showAuthError('Password must be at least 6 characters.'); return; }
+
+    btn.disabled = true;
+    try{
+      if(authMode === 'signup'){
+        const name = document.getElementById('auth-name').value.trim();
+        if(!name){ showAuthError('Please enter your name.'); btn.disabled=false; return; }
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: name });
+      } else {
+        await auth.signInWithEmailAndPassword(email, password);
+      }
+    }catch(err){
+      showAuthError(friendlyAuthError(err));
+    }
+    btn.disabled = false;
+  }
+
+  async function handleForgotPassword(){
+    const email = document.getElementById('auth-email').value.trim();
+    if(!email || !validCollegeEmail(email)){
+      showAuthError(`Enter your college email above first, then click "Forgot password?"`);
+      return;
+    }
+    try{
+      await auth.sendPasswordResetEmail(email);
+      showAuthError('Password reset email sent — check your inbox.');
+    }catch(err){
+      showAuthError(friendlyAuthError(err));
+    }
+  }
+
+  function friendlyAuthError(err){
+    const code = err.code || '';
+    if(code.includes('email-already-in-use')) return 'An account with this email already exists — try Sign In instead.';
+    if(code.includes('user-not-found')) return 'No account found with this email — try Create Account.';
+    if(code.includes('wrong-password') || code.includes('invalid-credential')) return 'Incorrect password. Try again or reset it below.';
+    if(code.includes('invalid-email')) return 'That email address looks invalid.';
+    if(code.includes('weak-password')) return 'Password is too weak — use at least 6 characters.';
+    return err.message || 'Something went wrong. Please try again.';
+  }
+
+  function signOutUser(){
+    auth.signOut();
+  }
+
+  auth.onAuthStateChanged(function(user){
+    const gate = document.getElementById('authGate');
+    const boardWrap = document.getElementById('boardWrap');
+    if(user){
+      gate.classList.add('hidden');
+      boardWrap.style.display = 'block';
+      const name = user.displayName || user.email.split('@')[0];
+      document.getElementById('f-name').value = name;
+      document.getElementById('userBar').innerHTML = `
+        <div><div class="who">👋 ${name}</div><div class="email">${user.email}</div></div>
+        <button onclick="signOutUser()">Sign out</button>
+      `;
+      render();
+    } else {
+      gate.classList.remove('hidden');
+      boardWrap.style.display = 'none';
+    }
+  });
 </script>
 </body>
 </html>
